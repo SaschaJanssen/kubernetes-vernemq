@@ -44,7 +44,7 @@ spec:
     spec:
       containers:
       - name: vernemq
-        image: erlio/docker-vernemq:1.9.0
+        image: erlio/docker-vernemq:1.9.2-1-alpine
         ports:
         - containerPort: 1883
           name: mqtt
