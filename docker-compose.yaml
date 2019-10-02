@@ -1,0 +1,34 @@
+version: "3.7"
+services:
+  postgres:
+    image: postgres:11-alpine
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      - "POSTGRES_USER=vernemq"
+      - "POSTGRES_PASSWORD=postgres!"
+      - "POSTGRES_DB=vernemq_db"
+  vernemq:
+    image: erlio/docker-vernemq:1.9.2-1-alpine
+    depends_on:
+      - postgres
+    ports:
+      - 0.0.0.0:8883:8883
+    volumes:
+      - ./certificate:/opt/ssl
+    environment:
+    - "DOCKER_VERNEMQ_LISTENER__SSL__CAFILE=/opt/ssl/server.csr"
+    - "DOCKER_VERNEMQ_LISTENER__SSL__CERTFILE=/opt/ssl/server.crt"
+    - "DOCKER_VERNEMQ_LISTENER__SSL__KEYFILE=/opt/ssl/server.key"
+    - "DOCKER_VERNEMQ_LISTENER__SSL__DEFAULT=0.0.0.0:8883"
+    - "DOCKER_VERNEMQ_ALLOW_ANONYMOUS=off"
+    - "DOCKER_VERNEMQ_PLUGINS__VMQ_DIVERSITY=on"
+    - "DOCKER_VERNEMQ_PLUGINS__VMQ_PASSWD=off"
+    - "DOCKER_VERNEMQ_PLUGINS__VMQ_ACL=off"
+    - "DOCKER_VERNEMQ_VMQ_DIVERSITY__AUTH_POSTGRES__ENABLED=on"
+    - "DOCKER_VERNEMQ_VMQ_DIVERSITY__POSTGRES__HOST=postgres"
+    - "DOCKER_VERNEMQ_VMQ_DIVERSITY__POSTGRES__PORT=5432"
+    - "DOCKER_VERNEMQ_VMQ_DIVERSITY__POSTGRES__USER=vernemq"
+    - "DOCKER_VERNEMQ_VMQ_DIVERSITY__POSTGRES__PASSWORD=postgres!"
+    - "DOCKER_VERNEMQ_VMQ_DIVERSITY__POSTGRES__DATABASE=vernemq_db"
+    - "DOCKER_VERNEMQ_VMQ_DIVERSITY__POSTGRES__PASSWORD_HASH_METHOD=crypt"

@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: messaging
+  name: vernemq-config-map
+  labels:
+    app: vernemq
+data:
+  DOCKER_VERNEMQ_LISTENER__SSL__CAFILE: "/opt/ssl/server.csr"
+  DOCKER_VERNEMQ_LISTENER__SSL__CERTFILE: "/opt/ssl/server.crt"
+  DOCKER_VERNEMQ_LISTENER__SSL__KEYFILE: "/opt/ssl/server.key"
+  DOCKER_VERNEMQ_LISTENER__SSL__DEFAULT: "0.0.0.0:8883"
+  DOCKER_VERNEMQ_ALLOW_ANONYMOUS: "off"
+  DOCKER_VERNEMQ_PLUGINS__VMQ_DIVERSITY: "on"
+  DOCKER_VERNEMQ_PLUGINS__VMQ_PASSWD: "off"
+  DOCKER_VERNEMQ_PLUGINS__VMQ_ACL: "off"
+  DOCKER_VERNEMQ_VMQ_DIVERSITY__AUTH_POSTGRES__ENABLED: "on"
+  DOCKER_VERNEMQ_VMQ_DIVERSITY__POSTGRES__HOST: "postgres-svc"
+  DOCKER_VERNEMQ_VMQ_DIVERSITY__POSTGRES__PORT: "5432"
+  DOCKER_VERNEMQ_VMQ_DIVERSITY__POSTGRES__USER: "vernemq"
+  DOCKER_VERNEMQ_VMQ_DIVERSITY__POSTGRES__PASSWORD: "postgres!"
+  DOCKER_VERNEMQ_VMQ_DIVERSITY__POSTGRES__DATABASE: "vernemq_db"
+  DOCKER_VERNEMQ_VMQ_DIVERSITY__POSTGRES__PASSWORD_HASH_METHOD: "crypt"
+  DOCKER_VERNEMQ_DISCOVERY_KUBERNETES: "1"
+  DOCKER_VERNEMQ_ERLANG__DISTRIBUTION__PORT_RANGE__MINIMUM: "9100"
+  DOCKER_VERNEMQ_ERLANG__DISTRIBUTION__PORT_RANGE__MAXIMUM: "9109"
+  DOCKER_VERNEMQ_LISTENER__VMQ__CLUSTERING: "0.0.0.0:44053"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vernemq
+  namespace: messaging
+spec:
+  serviceName: vernemq
+  replicas: 3
+  selector:
+    matchLabels:
+      app: vernemq
+  template:
+    metadata:
+      labels:
+        app: vernemq
+    spec:
+      containers:
+      - name: vernemq
+        image: erlio/docker-vernemq:1.9.0
+        ports:
+        - containerPort: 1883
+          name: mqtt
+        - containerPort: 8883
+          name: mqtts
+        - containerPort: 4369
+          name: epmd
+        - containerPort: 44053
+          name: vmq
+        - containerPort: 9100
+        - containerPort: 9101
+        - containerPort: 9102
+        - containerPort: 9103
+        - containerPort: 9104
+        - containerPort: 9105
+        - containerPort: 9106
+        - containerPort: 9107
+        - containerPort: 9108
+        - containerPort: 9109
+        envFrom:
+          - configMapRef:
+              name: vernemq-config-map
+        volumeMounts:
+        - mountPath: /opt/ssl
+          name: vernemq-certifications
+          readOnly: true
+      volumes:
+      - name: vernemq-certifications
+        secret:
+          secretName: vernemq-certifications
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vernemq
+  namespace: messaging
+  labels:
+    app: vernemq
+spec:
+  clusterIP: None
+  selector:
+    app: vernemq
+  ports:
+  - port: 4369
+    name: empd
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mqtt
+  namespace: messaging
+  labels:
+    app: mqtt
+spec:
+  type: ClusterIP
+  selector:
+    app: vernemq
+  ports:
+  - port: 1883
+    name: mqtt
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mqtts
+  namespace: messaging
+  labels:
+    app: mqtts
+spec:
+  type: LoadBalancer
+  sessionAffinity: ClientIP
+  selector:
+    app: vernemq
+  ports:
+  - port: 8883
+    name: mqtts
