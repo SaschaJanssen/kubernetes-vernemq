@@ -8,13 +8,13 @@ Kubernetes yaml files for deploying a VerneMQ cluster with database authenticati
 
 The inital database script creates the following demo login for the mqtt broker:
 
-'''
+```
 user: test-user
 client: test-client
 password: pass123
 
 allowed topics: test, foo/#
-'''
+```
 
 ## docker-compose
 
