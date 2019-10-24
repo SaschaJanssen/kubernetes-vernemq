@@ -25,6 +25,7 @@ data:
   DOCKER_VERNEMQ_ERLANG__DISTRIBUTION__PORT_RANGE__MINIMUM: "9100"
   DOCKER_VERNEMQ_ERLANG__DISTRIBUTION__PORT_RANGE__MAXIMUM: "9109"
   DOCKER_VERNEMQ_LISTENER__VMQ__CLUSTERING: "0.0.0.0:44053"
+  DOCKER_VERNEMQ_KUBERNETES_APP_LABEL: "vernemq"
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -64,6 +65,15 @@ spec:
         - containerPort: 9107
         - containerPort: 9108
         - containerPort: 9109
+        env:
+        - name: DOCKER_VERNEMQ_KUBERNETES_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
         envFrom:
           - configMapRef:
               name: vernemq-config-map
@@ -121,3 +131,32 @@ spec:
   ports:
   - port: 8883
     name: mqtts
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vernemq
+  namespace: messaging
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: endpoint-reader
+  namespace: messaging
+rules:
+  - apiGroups: ["", "extensions", "apps"]
+    resources: ["endpoints", "deployments", "replicasets", "pods"]
+    verbs: ["get", "list"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: endpoint-reader
+  namespace: messaging
+subjects:
+  - kind: ServiceAccount
+    name: vernemq
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: endpoint-reader
