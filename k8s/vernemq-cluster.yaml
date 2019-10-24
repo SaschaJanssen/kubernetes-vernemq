@@ -6,7 +6,7 @@ metadata:
   labels:
     app: vernemq
 data:
-  DOCKER_VERNEMQ_LISTENER__SSL__CAFILE: "/opt/ssl/server.csr"
+  DOCKER_VERNEMQ_LISTENER__SSL__CAFILE: "/opt/ssl/server.crt"
   DOCKER_VERNEMQ_LISTENER__SSL__CERTFILE: "/opt/ssl/server.crt"
   DOCKER_VERNEMQ_LISTENER__SSL__KEYFILE: "/opt/ssl/server.key"
   DOCKER_VERNEMQ_LISTENER__SSL__DEFAULT: "0.0.0.0:8883"
