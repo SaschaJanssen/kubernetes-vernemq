@@ -26,23 +26,37 @@ data:
   DOCKER_VERNEMQ_ERLANG__DISTRIBUTION__PORT_RANGE__MAXIMUM: "9109"
   DOCKER_VERNEMQ_LISTENER__VMQ__CLUSTERING: "0.0.0.0:44053"
   DOCKER_VERNEMQ_KUBERNETES_APP_LABEL: "vernemq"
+  DOCKER_VERNEMQ_ALLOW_REGISTER_DURING_NETSPLIT: "on"
+  DOCKER_VERNEMQ_ALLOW_PUBLISH_DURING_NETSPLIT: "on"
+  DOCKER_VERNEMQ_ALLOW_SUBSCRIBE_DURING_NETSPLIT: "on"
+  DOCKER_VERNEMQ_ALLOW_UNSUBSCRIBE_DURING_NETSPLIT: "on"
+  DOCKER_VERNEMQ_KUBERNETES_LABEL_SELECTOR: "app.kubernetes.io/name=vernemq,app.kubernetes.io/instance=vernemq-test"
+
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: vernemq
   namespace: messaging
+  labels:
+    app.kubernetes.io/name: vernemq
+    app.kubernetes.io/instance: vernemq-test
 spec:
   serviceName: vernemq
   replicas: 3
   selector:
     matchLabels:
       app: vernemq
+      app.kubernetes.io/name: vernemq
+      app.kubernetes.io/instance: vernemq-test
   template:
     metadata:
       labels:
         app: vernemq
+        app.kubernetes.io/name: vernemq
+        app.kubernetes.io/instance: vernemq-test
     spec:
+      serviceAccountName: vernemq
       containers:
       - name: vernemq
         image: erlio/docker-vernemq:1.9.2-1-alpine
@@ -55,6 +69,8 @@ spec:
           name: epmd
         - containerPort: 44053
           name: vmq
+        - containerPort: 8888
+          name: prometheus
         - containerPort: 9100
         - containerPort: 9101
         - containerPort: 9102
@@ -66,21 +82,63 @@ spec:
         - containerPort: 9108
         - containerPort: 9109
         env:
-        - name: DOCKER_VERNEMQ_KUBERNETES_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        - name: MY_POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
+          - name: DOCKER_VERNEMQ_KUBERNETES_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: MY_POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
         envFrom:
           - configMapRef:
               name: vernemq-config-map
+        livenessProbe:
+          exec:
+            command:
+              - /bin/sh
+              - "-c"
+              - "/vernemq/bin/vernemq ping | grep pong"
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - "-c"
+                - "/vernemq/bin/vernemq ping | grep pong"
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
         volumeMounts:
         - mountPath: /opt/ssl
           name: vernemq-certifications
           readOnly: true
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: "kubernetes.io/hostname"
+                labelSelector:
+                  matchExpressions:
+                    - key: "app"
+                      operator: In
+                      values:
+                        - vernemq
+                    - key: "release"
+                      operator: In
+                      values:
+                        - vernemq-test
       volumes:
       - name: vernemq-certifications
         secret:
@@ -93,10 +151,14 @@ metadata:
   namespace: messaging
   labels:
     app: vernemq
+    app.kubernetes.io/name: vernemq
+    app.kubernetes.io/instance: vernemq-test
 spec:
   clusterIP: None
   selector:
     app: vernemq
+    app.kubernetes.io/name: vernemq
+    app.kubernetes.io/instance: vernemq-test
   ports:
   - port: 4369
     name: empd
@@ -112,6 +174,8 @@ spec:
   type: ClusterIP
   selector:
     app: vernemq
+    app.kubernetes.io/name: vernemq
+    app.kubernetes.io/instance: vernemq-test
   ports:
   - port: 1883
     name: mqtt
@@ -128,6 +192,8 @@ spec:
   sessionAffinity: ClientIP
   selector:
     app: vernemq
+    app.kubernetes.io/name: vernemq
+    app.kubernetes.io/instance: vernemq-test
   ports:
   - port: 8883
     name: mqtts
@@ -137,25 +203,35 @@ kind: ServiceAccount
 metadata:
   name: vernemq
   namespace: messaging
+  labels:
+    app.kubernetes.io/name: vernemq
+    app.kubernetes.io/instance: vernemq-test
 ---
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: endpoint-reader
   namespace: messaging
+  labels:
+    app.kubernetes.io/name: vernemq
+    app.kubernetes.io/instance: vernemq-test
 rules:
-  - apiGroups: ["", "extensions", "apps"]
-    resources: ["endpoints", "deployments", "replicasets", "pods"]
-    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: endpoint-reader
   namespace: messaging
+  labels:
+    app.kubernetes.io/name: vernemq
+    app.kubernetes.io/instance: vernemq-test
 subjects:
   - kind: ServiceAccount
     name: vernemq
+    namespace: messaging
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
